@@ -5,6 +5,7 @@
 
 from pox.core import core
 import pox.openflow.libopenflow_01 as of
+import pox.lib.packet as pkt
 
 log = core.getLogger()
 
@@ -23,7 +24,36 @@ class Firewall(object):
         # This binds our PacketIn event listener
         connection.addListeners(self)
 
-        # add switch rules here
+        # Install the firewall rules once, when the switch connects.
+        # Higher priority wins, so the ICMP rule beats the IPv4 drop rule.
+        self._install_rule(
+            priority=30,
+            match=of.ofp_match(dl_type=pkt.ethernet.IP_TYPE,
+                               nw_proto=pkt.ipv4.ICMP_PROTOCOL),
+            flood=True,
+        )
+        self._install_rule(
+            priority=20,
+            match=of.ofp_match(dl_type=pkt.ethernet.ARP_TYPE),
+            flood=True,
+        )
+        self._install_rule(
+            priority=10,
+            match=of.ofp_match(dl_type=pkt.ethernet.IP_TYPE),
+            flood=False,
+        )
+
+    def _install_rule(self, priority, match, flood):
+        """
+        Send a flow rule to the switch. A rule with no actions drops
+        every packet it matches.
+        """
+        msg = of.ofp_flow_mod()
+        msg.priority = priority
+        msg.match = match
+        if flood:
+            msg.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
+        self.connection.send(msg)
 
     def _handle_PacketIn(self, event):
         """
