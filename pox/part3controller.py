@@ -53,7 +53,7 @@ class Part3Controller(object):
         elif connection.dpid == 31:
             self.dcs31_setup()
         else:
-                print("UNKNOWN SWITCH")
+            print("UNKNOWN SWITCH")
             exit(1)
 
     def s1_setup(self):
@@ -78,15 +78,17 @@ class Part3Controller(object):
         self.install_flow(priority=300, 
                           dl_type=0x0800, 
                           nw_src=IPS["hnotrust"],
-                          nw_dst=IPS["serv1"]) 
+                          nw_dst=IPS["serv1"]
+        ) 
 
         # block untrusted ICMP 
         for host in("h10", "h20", "h30", "serv1"):
             self.install_flow(priority = 200, 
                               dl_type = 0x0800,
                               nw_proto = 1, 
-                              nw_src = IPS["hnotrust"]
-                              nw_dst = IPS[host])
+                              nw_src = IPS["hnotrust"],
+                              nw_dst = IPS[host],
+            )
 
         # Forward IP packets to port of destination host 
         destination_ports = {
@@ -118,7 +120,7 @@ class Part3Controller(object):
                     nw_dst = None,
                     nw_proto =None,
                     out_port = None):
-
+        
         msg = of.ofp_flow_mod()
         msg.priority = priority
 
