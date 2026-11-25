@@ -53,28 +53,89 @@ class Part3Controller(object):
         elif connection.dpid == 31:
             self.dcs31_setup()
         else:
-            print("UNKNOWN SWITCH")
+                print("UNKNOWN SWITCH")
             exit(1)
 
     def s1_setup(self):
         # put switch 1 rules here
-        pass
+        self.install_flow(out_port = of.OFPP_FLOOD)       
 
     def s2_setup(self):
         # put switch 2 rules here
-        pass
+        self.install_flow(out_port = of.OFPP_FLOOD)       
 
     def s3_setup(self):
         # put switch 3 rules here
-        pass
+        self.install_flow(out_port = of.OFPP_FLOOD)       
 
     def cores21_setup(self):
         # put core switch rules here
-        pass
+
+        # Let ARP through 
+        self.install_flow(priority=50, dl_type=0x0806, out_port=of.OFPP_FLOOD)
+        
+        # block ipv4 traffic from untrusted host to serv1
+        self.install_flow(priority=300, 
+                          dl_type=0x0800, 
+                          nw_src=IPS["hnotrust"],
+                          nw_dst=IPS["serv1"]) 
+
+        # block untrusted ICMP 
+        for host in("h10", "h20", "h30", "serv1"):
+            self.install_flow(priority = 200, 
+                              dl_type = 0x0800,
+                              nw_proto = 1, 
+                              nw_src = IPS["hnotrust"]
+                              nw_dst = IPS[host])
+
+        # Forward IP packets to port of destination host 
+        destination_ports = {
+            "h10": 1, 
+            "h20": 2, 
+            "h30": 3, 
+            "serv1": 4, 
+            "hnotrust": 5
+        } 
+
+        for host, port in destination_ports.items():
+            self.install_flow(
+                priority = 100, 
+                dl_type = 0x0800, 
+                nw_dst = IPS[host],
+                out_port = port
+            ) 
+
+
+
 
     def dcs31_setup(self):
         # put datacenter switch rules here
-        pass
+        self.install_flow(out_port = of.OFPP_FLOOD)       
+
+    def install_flow(self, priority = 0,
+                    dl_type = None, 
+                    nw_src = None,
+                    nw_dst = None,
+                    nw_proto =None,
+                    out_port = None):
+
+        msg = of.ofp_flow_mod()
+        msg.priority = priority
+
+        if dl_type is not None: 
+            msg.match.dl_type = dl_type
+        if nw_src is not None:
+            msg.match.nw_src = IPAddr(nw_src)
+        if nw_dst is not None: 
+            msg.match.nw_dst = IPAddr(nw_dst) 
+        if nw_proto is not None:
+            msg.match.nw_proto = nw_proto 
+
+        # drop if dosen't match anything 
+        if out_port is not None:
+            msg.actions.append(of.ofp_action_output(port=out_port)) 
+
+        self.connection.send(msg) 
 
     # used in part 4 to handle individual ARP packets
     # not needed for part 3 (USE RULES!)
